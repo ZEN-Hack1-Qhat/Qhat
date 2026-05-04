@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html, body {
+  background: #F8F6F0;
+  color: #1A1A1A;
+  font-family: "游明朝", "Yu Mincho", "Hiragino Mincho ProN", serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.label-en {
+  font-family: Georgia, serif;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  color: #A09C92;
+}
+
+.mono {
+  font-family: Menlo, monospace;
+}
+
+.qhat-divider {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    #D8D5CD 20%,
+    #D8D5CD 80%,
+    transparent
+  );
+}
+
+.scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #D8D5CD; border-radius: 3px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
