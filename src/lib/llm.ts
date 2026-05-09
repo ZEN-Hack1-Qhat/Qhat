@@ -54,11 +54,17 @@ const RESPONSE_SCHEMA = {
       description:
         "New facts revealed in this exact turn that should be remembered for the rest of the conversation. E.g. 'ユーザーは関西出身', 'ユーザーは映画好き'. Empty array if nothing new.",
     },
+    goalsHit: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "IDs of practice goals the user satisfied with their LATEST message (not earlier in the conversation). Judge semantically — 'echo' counts even if the user paraphrased; 'self-disclosure' counts for any first-person sharing. Empty array if none hit. The set of goals to judge is provided in the system prompt.",
+    },
   },
   required: ["reply", "emotion", "reaction", "reception"],
 };
 
-interface LLMInput {
+export interface LLMInput {
   userText: string;
   prevEmotion: EmotionProbs;
   characterId: string;
@@ -69,9 +75,12 @@ interface LLMInput {
   sceneId: string;
   // Facts the model has accumulated about the practitioner so far this session.
   keyFacts?: string[];
+  // Practice goals to evaluate against the user's latest message. Surface
+  // only semantic goals here — emotion/length goals are checked client-side.
+  goalsToJudge?: { id: string; label: string }[];
 }
 
-function buildSystemPrompt(characterId: string, sceneId: string): string {
+export function buildSystemPrompt(characterId: string, sceneId: string): string {
   const c = CHARACTERS[characterId];
   const scene = SCENES.find((s) => s.id === sceneId);
   const p = c.profile;
@@ -152,7 +161,7 @@ function buildHistoryContents(
   return out;
 }
 
-function clampProbs(raw: unknown): EmotionProbs {
+export function clampProbs(raw: unknown): EmotionProbs {
   const fallback: EmotionProbs = {
     joy: 0.25,
     calm: 0.25,
@@ -185,7 +194,19 @@ export async function runGeminiTurn(input: LLMInput): Promise<TurnResponse> {
   const c = CHARACTERS[input.characterId];
   if (!c) throw new LLMCallError(`unknown character_id: ${input.characterId}`);
 
-  const systemPrompt = buildSystemPrompt(input.characterId, input.sceneId);
+  let systemPrompt = buildSystemPrompt(input.characterId, input.sceneId);
+  // Append goal-judgment instructions only when the caller provides goals.
+  // Keeping this out of the role-play prompt by default avoids drowning
+  // the persona in evaluator-mode language during normal turns.
+  if (input.goalsToJudge && input.goalsToJudge.length > 0) {
+    systemPrompt += `
+
+# 目標達成判定（重要）
+通常のロールプレイ応答に加えて、ユーザーの **直近の発話** だけを対象に、以下の練習目標が達成されたか判定してください。意味的に拾えていれば言い換えでもOK（例: "映画" を "シネマ" と返したら echo は達成）。
+${input.goalsToJudge.map((g) => `- ${g.id}: ${g.label}`).join("\n")}
+達成された目標の id だけを goalsHit 配列に入れて返してください。判定は今回のユーザー発話のみが対象で、過去ターンは無視。なにも当てはまらなければ空配列。`;
+  }
+
   const history = buildHistoryContents(input.history, c.name);
 
   // Inject accumulated facts as the very first model turn. This is more
@@ -284,6 +305,15 @@ export async function runGeminiTurn(input: LLMInput): Promise<TurnResponse> {
         .slice(0, 5)
     : [];
 
+  // Filter goalsHit to ids the caller actually asked about — defends
+  // against the model hallucinating goal ids that don't exist client-side.
+  const askedIds = new Set((input.goalsToJudge ?? []).map((g) => g.id));
+  const goalsHit = Array.isArray(parsed.goalsHit)
+    ? (parsed.goalsHit as unknown[])
+        .filter((x): x is string => typeof x === "string" && askedIds.has(x))
+        .slice(0, 6)
+    : [];
+
   const characterMessage: Message = {
     id: `msg_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
     role: "character",
@@ -302,6 +332,7 @@ export async function runGeminiTurn(input: LLMInput): Promise<TurnResponse> {
   return {
     characterMessage,
     keyFactsLearned,
+    goalsHit,
     inferenceMeta: {
       // We're not running the quantum circuit yet — surface the LLM time
       // under the slot we have and leave quantumInferenceMs as a placeholder.

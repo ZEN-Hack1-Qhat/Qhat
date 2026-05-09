@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runMockTurn } from "@/lib/mockInference";
 import { isGeminiConfigured, NoLLMKeyError, runGeminiTurn } from "@/lib/llm";
+import { isGroqConfigured, NoGroqKeyError, runGroqTurn } from "@/lib/groq";
 import { validateTurnRequest, ValidationError } from "@/lib/validate";
 import { checkRateLimit, clientKey } from "@/lib/rateLimit";
 
@@ -12,9 +13,13 @@ const MAX_BODY_BYTES = 64 * 1024;
 
 export async function GET() {
   // Lightweight status probe so the client can show a Mock/LLM badge.
-  return NextResponse.json({
-    mode: isGeminiConfigured() ? "gemini" : "mock",
-  });
+  // Reports the highest-priority LLM that is configured; mock is the floor.
+  const mode = isGeminiConfigured()
+    ? "gemini"
+    : isGroqConfigured()
+    ? "groq"
+    : "mock";
+  return NextResponse.json({ mode });
 }
 
 export async function POST(req: Request) {
@@ -53,19 +58,31 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  // Try Gemini first; fall back to mock if no key or anything goes wrong.
+  // Try Gemini first (best Japanese quality on free tier).
   if (isGeminiConfigured()) {
     try {
       const out = await runGeminiTurn(parsed);
       return NextResponse.json({ ...out, mode: "gemini" });
     } catch (e) {
       if (!(e instanceof NoLLMKeyError)) {
-        // Log to server for debugging; don't surface to client.
-        console.error("Gemini error, falling back to mock:", (e as Error).message);
+        console.error("Gemini error, trying Groq:", (e as Error).message);
       }
     }
   }
 
+  // Then Groq (free, fast, decent JP) — useful when Gemini hits 429 quotas.
+  if (isGroqConfigured()) {
+    try {
+      const out = await runGroqTurn(parsed);
+      return NextResponse.json({ ...out, mode: "groq" });
+    } catch (e) {
+      if (!(e instanceof NoGroqKeyError)) {
+        console.error("Groq error, falling back to mock:", (e as Error).message);
+      }
+    }
+  }
+
+  // Floor: heuristic mock so the UI still demos something useful offline.
   let result;
   try {
     result = runMockTurn(parsed);

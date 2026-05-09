@@ -39,3 +39,45 @@ html, body {
 .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
 .scrollbar-thin::-webkit-scrollbar-thumb { background: #D8D5CD; border-radius: 3px; }
 .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+
+/* Shared screen-entry animation. Used by SceneSelect and ConversationView
+   so swapping between them feels like one continuous space settling rather
+   than a hard cut. Kept short and subtle to match Qhat's calm aesthetic. */
+.qhat-fade-in {
+  animation: qhat-fade-in 280ms ease-out both;
+}
+@keyframes qhat-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* "響いた" overlay: pops in over the character, hovers briefly, eases
+   away. Slightly more energetic than the screen fade (this is a "yes"
+   moment) but still capped at ~600ms of motion so it doesn't compete
+   with the next reply arriving. */
+.qhat-landing-pop {
+  animation: qhat-landing-pop 600ms cubic-bezier(0.2, 1.4, 0.3, 1) both;
+}
+@keyframes qhat-landing-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 6px) scale(0.85);
+    left: 50%;
+  }
+  60% {
+    opacity: 1;
+    transform: translate(-50%, -2px) scale(1.04);
+    left: 50%;
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+    left: 50%;
+  }
+}

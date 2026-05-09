@@ -35,7 +35,11 @@ export interface SessionFeedback {
 const STORAGE_KEY = "qhat:sessions:v1";
 const SETTINGS_KEY = "qhat:settings:v1";
 const GRADUATION_KEY = "qhat:graduation:v1";
+const LAST_SCENE_KEY = "qhat:last_scene:v1";
+const STORY_PROGRESS_KEY = "qhat:story_progress:v1";
+const EFFECTIVE_LINES_KEY = "qhat:effective_lines:v1";
 const MAX_SAVED = 30;
+const MAX_EFFECTIVE_LINES = 50;
 
 interface Settings {
   saveSessions: boolean;
@@ -76,7 +80,11 @@ export function saveSession(s: SavedSession) {
   if (typeof window === "undefined") return;
   try {
     const all = loadSessions();
-    all.unshift(s);
+    // Upsert by id so an in-progress session can be saved repeatedly as the
+    // conversation grows, instead of duplicating into the list each turn.
+    const idx = all.findIndex((x) => x.id === s.id);
+    if (idx >= 0) all[idx] = s;
+    else all.unshift(s);
     const trimmed = all.slice(0, MAX_SAVED);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
   } catch {}
@@ -101,6 +109,106 @@ export function getGraduation(sceneId: string): number {
   } catch {
     return 0;
   }
+}
+
+// Last scene the user opened — used by the home "start" button to pick a
+// recommended scene and let users continue where they left off without
+// re-choosing every time.
+export function getLastScene(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(LAST_SCENE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setLastScene(sceneId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(LAST_SCENE_KEY, sceneId);
+  } catch {}
+}
+
+// ---------------------------------------------------------------------------
+// Story progress: which days the user has completed.
+// ---------------------------------------------------------------------------
+// Stored as a flat array of episode ids so the schema is human-readable in
+// devtools and trivial to migrate. Order reflects completion order, which
+// also gives us a "last finished" hook for free.
+
+export function getStoryProgress(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(STORY_PROGRESS_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function markEpisodeComplete(episodeId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const list = getStoryProgress();
+    if (list.includes(episodeId)) return; // idempotent — replays don't dupe
+    list.push(episodeId);
+    localStorage.setItem(STORY_PROGRESS_KEY, JSON.stringify(list));
+  } catch {}
+}
+
+export function resetStoryProgress() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(STORY_PROGRESS_KEY);
+  } catch {}
+}
+
+// ---------------------------------------------------------------------------
+// "響いたセリフ": user lines that produced a clearly positive emotion shift
+// in the partner. Recorded silently during conversations and surfaced on
+// the Day-30 reflection so the practitioner can see "these are the words
+// that worked for me" — concrete proof of progress, not just a count.
+// ---------------------------------------------------------------------------
+
+export interface EffectiveLine {
+  text: string;
+  episodeId: string;
+  characterId: string;
+  // What changed and how much. Used to sort + label the entry ("不安が
+  // 大きく下がった" vs "喜びが上がった").
+  emotion: "joy" | "calm" | "anxiety" | "confusion";
+  delta: number;
+  timestamp: number;
+}
+
+export function getEffectiveLines(): EffectiveLine[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(EFFECTIVE_LINES_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveEffectiveLine(line: EffectiveLine) {
+  if (typeof window === "undefined") return;
+  try {
+    const all = getEffectiveLines();
+    // Dedupe near-identical entries (same text + character) so replays
+    // don't flood the reflection with the same line over and over.
+    const filtered = all.filter(
+      (l) => !(l.text === line.text && l.characterId === line.characterId)
+    );
+    filtered.unshift(line);
+    const trimmed = filtered.slice(0, MAX_EFFECTIVE_LINES);
+    localStorage.setItem(EFFECTIVE_LINES_KEY, JSON.stringify(trimmed));
+  } catch {}
 }
 
 export function bumpGraduation(sceneId: string, delta: number): number {

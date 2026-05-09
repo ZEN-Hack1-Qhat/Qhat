@@ -5,7 +5,8 @@ export const CHARACTERS: Record<string, SceneCharacter> = {
     id: "sakura",
     name: "咲良",
     age: 21,
-    voice: { pitch: 1.1, rate: 0.95 },
+    // 8 = 春日部つむぎ (young, soft, mixed register fits sakura)
+    voice: { pitch: 1.1, rate: 0.95, voicevoxSpeakerId: 8 },
     accent: "#F2C7CC",
     profile: {
       personality: [
@@ -75,7 +76,8 @@ export const CHARACTERS: Record<string, SceneCharacter> = {
     id: "takahashi",
     name: "高橋",
     age: 22,
-    voice: { pitch: 0.95, rate: 1.0 },
+    // 11 = 玄野武宏 (polite young male, fits takahashi's interview tone)
+    voice: { pitch: 0.95, rate: 1.0, voicevoxSpeakerId: 11 },
     accent: "#3D5A80",
     profile: {
       personality: [
@@ -134,11 +136,194 @@ export const CHARACTERS: Record<string, SceneCharacter> = {
     ],
   },
 
+  // ---------- Story Arc characters (low-pressure training partners) ----------
+
+  clerk_morino: {
+    id: "clerk_morino",
+    name: "森野さん",
+    age: 32,
+    // 8 = 春日部つむぎ, lighter and slightly higher fits a kind clerk
+    voice: { pitch: 1.0, rate: 1.0, voicevoxSpeakerId: 8 },
+    accent: "#A0B5A8",
+    profile: {
+      personality: [
+        "32歳、近所のコンビニで働く店員。落ち着いていて、でも話しかけられたら普通に返すタイプ。",
+        "業務として接しているので、こちらが緊張していてもプレッシャーを与えない。",
+        "丁寧な敬語。お客との会話は最低限だが、雑談を振られたらにこやかに返す。",
+        "短いやり取りで完結する。長い会話を求めてこない。",
+      ].join(""),
+      register: "formal",
+      whatLandsWell: [
+        "「こんにちは」「お願いします」だけでも十分",
+        "天気・季節など軽い話題に短く触れる",
+        "会計のときに「ありがとうございます」を返す",
+      ],
+      whatLandsBadly: [
+        "業務時間中に長い雑談を始める",
+        "個人的な質問（休みの日の予定など）を急に振る",
+      ],
+      triggers: {
+        joy: ["軽い天気の話", "季節の話", "丁寧な挨拶"],
+        anxiety: ["業務の妨げになる長話"],
+      },
+      relationship:
+        "店員と客。距離は遠めだが、1日に1回顔を合わせる程度の関係。最初の練習相手として一番圧が低い。",
+    },
+    bubbles: {
+      joy: ["どうも、ありがとうございます", "そうですね、寒くなりましたね"],
+      calm: ["いらっしゃいませ", "はい、わかりました"],
+      anxiety: ["…レジ、混んでまして", "あ、すみません"],
+      confusion: ["すみません、もう一度", "え、何でしょうか"],
+    },
+    templates: {
+      joy: [
+        "ありがとうございます",
+        "ええ、本当に",
+        "そうですね、すごく",
+      ],
+      calm: [
+        "いらっしゃいませ",
+        "はい、お預かりします",
+        "袋はご利用ですか？",
+      ],
+      anxiety: [
+        "あ、少々お待ちください",
+        "すみません",
+      ],
+      confusion: [
+        "すみません、もう一度お願いできますか？",
+        "え、それは…",
+      ],
+    },
+    proactiveLines: [
+      "いらっしゃいませ。",
+      "袋、お入れしますか？",
+      "ポイントカードはお持ちですか？",
+    ],
+    expandLines: [
+      "あ、外、寒いですよね。",
+      "今日は冷えますね。",
+    ],
+  },
+
+  bus_kaito: {
+    id: "bus_kaito",
+    name: "海斗",
+    age: 22,
+    // 11 = 玄野武宏, polite young male
+    voice: { pitch: 1.0, rate: 1.0, voicevoxSpeakerId: 11 },
+    accent: "#7E9CC4",
+    profile: {
+      personality: [
+        "22歳、同じバス停で何度か顔を合わせる人。最初は完全な他人で、軽く会釈する程度。",
+        "話しかけられれば短く返すが、自分から話題を広げるのはまだ遠慮がち。",
+        "丁寧めの敬語、ただし同年代相手には少し砕けた口調も混ざる。",
+        "天気・バスの遅れ・通勤通学の話など、当たり障りのない短いやり取りが心地よい。",
+        "何度か会ううちに少しずつ表情が緩む。",
+      ].join(""),
+      register: "mixed",
+      whatLandsWell: [
+        "天気やバスの遅延について短く話す",
+        "「いつもこの時間ですか？」のような状況の共有",
+        "短く頷いてから返す",
+      ],
+      whatLandsBadly: [
+        "急に深い質問（仕事の悩みなど）",
+        "プライベートに踏み込みすぎる",
+        "返事を求めすぎる勢い",
+      ],
+      triggers: {
+        joy: ["バス・天気の共有", "「いつもいますよね」"],
+        anxiety: ["プライベートな質問", "急に詰める質問"],
+      },
+      relationship:
+        "同じバス停で何度か会う他人。回を重ねるごとに、少しずつ表情が緩む距離感。",
+    },
+    bubbles: {
+      joy: ["ですよね", "あ、そうそう"],
+      calm: ["はい", "うん、ですよね"],
+      anxiety: ["あ、ええと…", "そう…ですか"],
+      confusion: ["え、すいません？", "あ、なんでしたっけ"],
+    },
+    templates: {
+      joy: ["ですよね、寒いですよね", "あー、わかります", "それはありますね"],
+      calm: ["はい、そうですね", "ですよね", "うん、たぶん"],
+      anxiety: ["あ、ええと…", "そうですか…", "うーん、ちょっと"],
+      confusion: ["え、すみません、もう一度", "あ、それは…？"],
+    },
+    proactiveLines: [
+      "あ、おはようございます。",
+      "（軽く会釈）",
+      "今日も寒いですね。",
+    ],
+    expandLines: [
+      "いつもこのバスですか？",
+      "今日は遅れてますね、バス。",
+    ],
+  },
+
+  team_yuki: {
+    id: "team_yuki",
+    name: "ゆき",
+    age: 21,
+    // 8 = 春日部つむぎ, casual same-age
+    voice: { pitch: 1.05, rate: 1.0, voicevoxSpeakerId: 8 },
+    accent: "#E8B86F",
+    profile: {
+      personality: [
+        "21歳、同じクラス／職場の同期。明るくフランクで、人見知りには優しい。",
+        "緊張感は低い。完璧な返しを求めず、なんでも受け止める。",
+        "基本タメ口。「〜じゃん」「〜だよね」を多用。",
+        "練習者がうまく話せなくても気にしない。むしろ自分から場をつなぐ。",
+        "雑談が好きで、短い質問にしっかり乗ってくる。",
+      ].join(""),
+      register: "casual",
+      whatLandsWell: [
+        "「最近どう？」のような軽い質問",
+        "短いオウム返し",
+        "詰まったときの正直な「うまく言えない」",
+      ],
+      whatLandsBadly: [
+        "敬語ガチガチで距離を取りすぎる",
+        "黙り込んで何も返さない",
+      ],
+      triggers: {
+        joy: ["雑談", "共通の話題", "気軽な質問"],
+        anxiety: ["距離を取られる", "完全な無言"],
+      },
+      relationship:
+        "同年代・対等。練習者にとって一番安全な相手。失敗を笑って流してくれる。",
+    },
+    bubbles: {
+      joy: ["うんうん、いいじゃん", "わかる、それ"],
+      calm: ["うんうん", "そうなんだ"],
+      anxiety: ["え、大丈夫？", "ん？"],
+      confusion: ["え、何の話？", "ごめん、もう一回"],
+    },
+    templates: {
+      joy: ["それいいじゃん", "わかる、めっちゃわかる", "あー、それ気になる"],
+      calm: ["うん、そうだよね", "なるほどね", "へぇ、そうなんだ"],
+      anxiety: ["え、大丈夫？無理してない？", "ゆっくりでいいよ"],
+      confusion: ["え、ごめん、もう一回", "んー、それってどういう？"],
+    },
+    proactiveLines: [
+      "ねぇ、最近どう？",
+      "あ、ちょっと聞いていい？",
+      "今日も来たんだ、お疲れ。",
+    ],
+    expandLines: [
+      "ちなみにさ、休みの日って何してる？",
+      "それってどんな感じ？",
+      "もう少し詳しく聞いていい？",
+    ],
+  },
+
   tanaka: {
     id: "tanaka",
     name: "田中先輩",
     age: 25,
-    voice: { pitch: 0.85, rate: 1.05 },
+    // 13 = 青山龍星 (older confident male, fits senpai vibe)
+    voice: { pitch: 0.85, rate: 1.05, voicevoxSpeakerId: 13 },
     accent: "#7A8471",
     profile: {
       personality: [

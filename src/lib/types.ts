@@ -42,7 +42,14 @@ export interface SceneCharacter {
   id: string;
   name: string;
   age: number;
-  voice: { pitch: number; rate: number };
+  voice: {
+    pitch: number;
+    rate: number;
+    // Optional VOICEVOX speaker id. When set and the local VOICEVOX engine is
+    // reachable at http://localhost:50021, speak() will use it. Otherwise it
+    // falls back to the browser SpeechSynthesis API.
+    voicevoxSpeakerId?: number;
+  };
   accent: string;
   profile: CharacterProfile;
   bubbles: Record<Emotion, string[]>;
@@ -79,4 +86,10 @@ export interface TurnResponse {
   // Facts the model identified in this turn that should be remembered for
   // the rest of the session. Optional; mock returns no facts.
   keyFactsLearned?: string[];
+  // Goal ids that the LLM judged the user satisfied with their latest
+  // message — used by the live checklist UI to mark items done semantically
+  // instead of relying solely on regex/length heuristics. Empty array (or
+  // omitted) means "no goal hit this turn"; mock always returns nothing
+  // here, the heuristic check on the client takes over in that case.
+  goalsHit?: string[];
 }
