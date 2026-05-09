@@ -7,7 +7,13 @@ const ALLOWED_SCENE_IDS = new Set([
   "kanto_offline",
   "job_interview",
   "senpai_ask",
+  "custom",
 ]);
+// const ALLOWED_SCENE_IDS = new Set([
+//   "kanto_offline",
+//   "job_interview",
+//   "senpai_ask",
+// ]);
 
 export class ValidationError extends Error {}
 
