@@ -2,11 +2,32 @@ import type { Emotion, EmotionProbs, Message, Role } from "./types";
 
 const EMOTION_KEYS: Emotion[] = ["joy", "calm", "anxiety", "confusion"];
 
-const ALLOWED_CHARACTER_IDS = new Set(["sakura", "takahashi", "tanaka"]);
+const ALLOWED_CHARACTER_IDS = new Set([
+  // Original cast
+  "sakura",
+  "takahashi",
+  "tanaka",
+  // Story arc additions (Days 1–10, 28)
+  "clerk_morino",
+  "bus_kaito",
+  "team_yuki",
+]);
 const ALLOWED_SCENE_IDS = new Set([
+  // Original 3 scenarios — also Days 14/21/25 of the story arc
   "kanto_offline",
   "job_interview",
   "senpai_ask",
+  // Story arc Days 1/3/5/7/10
+  "convenience_store",
+  "bus_stop_morning",
+  "bus_stop_echo",
+  "team_one_question",
+  "team_recovery",
+  // Story arc Days 17, 28
+  "sakura_cafe",
+  "team_initiate",
+  // Legacy fallback used in early prototypes — kept until all clients are
+  // updated to send a real scene id.
   "custom",
 ]);
 // const ALLOWED_SCENE_IDS = new Set([
@@ -37,6 +58,10 @@ export interface ValidatedTurnRequest {
   expand: boolean;
   history: Message[];
   keyFacts: string[];
+  // Goals the LLM should evaluate against the user's latest message. Only
+  // semantic goals come through here — emotion-threshold and length-based
+  // goals are evaluated deterministically client-side.
+  goalsToJudge: { id: string; label: string }[];
 }
 
 const MAX_USER_TEXT = 2000;
@@ -120,6 +145,21 @@ export function validateTurnRequest(raw: unknown): ValidatedTurnRequest {
       .slice(0, 30);
   }
 
+  // goals_to_judge: ids + labels only, capped tightly. We don't need the
+  // full Goal type on the wire — the LLM only judges by label.
+  let goalsToJudge: { id: string; label: string }[] = [];
+  const rawGoals = raw.goals_to_judge;
+  if (Array.isArray(rawGoals)) {
+    goalsToJudge = rawGoals
+      .filter((g): g is Record<string, unknown> => isPlainObject(g))
+      .map((g) => ({
+        id: typeof g.id === "string" ? g.id.slice(0, 64) : "",
+        label: typeof g.label === "string" ? g.label.slice(0, 200) : "",
+      }))
+      .filter((g) => g.id.length > 0 && g.label.length > 0)
+      .slice(0, 6);
+  }
+
   return {
     userText,
     prevEmotion,
@@ -130,5 +170,6 @@ export function validateTurnRequest(raw: unknown): ValidatedTurnRequest {
     expand: raw.expand === true,
     history,
     keyFacts,
+    goalsToJudge,
   };
 }

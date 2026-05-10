@@ -7,12 +7,28 @@ interface Heuristic {
   bias: Partial<Record<Emotion, number>>;
 }
 
+// Heuristic patterns for the offline mock. The LLM path handles negative
+// input via the persona prompt's "響かないパターン" section; this list is the
+// best-effort approximation when both LLMs are 429'd or absent. Negative
+// coverage is intentionally broad — the previous list only flagged a
+// handful of words (怖い・嫌・無理・やめ・帰り), so casual rudeness like
+// "つまらない" or "うざい" would slide right past with no emotional reaction,
+// which is the opposite of what a *practice partner* should model.
 const HEURISTICS: Heuristic[] = [
-  { pattern: /(ありがとう|嬉し|楽し|好き|いいね|素敵)/, bias: { joy: 0.35, anxiety: -0.15 } },
+  { pattern: /(ありがとう|嬉し|楽し|好き|いいね|素敵|最高|良い|よかった)/, bias: { joy: 0.35, anxiety: -0.15 } },
   { pattern: /(こんにち|はじめまして|よろしく|お疲れ)/, bias: { calm: 0.2, joy: 0.1, anxiety: -0.1 } },
   { pattern: /(ごめん|すみません|申し訳)/, bias: { calm: 0.18, anxiety: -0.05 } },
   { pattern: /(\?|？|なに|なん|どう|どこ|いつ|だれ)/, bias: { confusion: 0.18 } },
-  { pattern: /(怖|嫌|無理|やめ|帰り)/, bias: { anxiety: 0.3, calm: -0.15, joy: -0.15 } },
+  // Strong negatives — direct rejection or fear cues. Big anxiety bump.
+  { pattern: /(怖|嫌|無理|やめ|帰り|消え|死ね|キモ|気持ち悪)/, bias: { anxiety: 0.32, calm: -0.18, joy: -0.2 } },
+  // Mild negatives — disinterest / dismissal. Smaller anxiety bump but
+  // joy still drops noticeably.
+  { pattern: /(つまら|だる|うざ|めんどい|めんどく|興味な|どうでもい|別に|微妙|ダメ|だめ|いらない)/, bias: { anxiety: 0.18, joy: -0.22, calm: -0.1 } },
+  // Direct insults / hostile tone — confusion + anxiety together (the
+  // character is hurt AND doesn't know how to respond).
+  { pattern: /(バカ|ばか|アホ|うるさい|うざい|黙れ|ふざけ)/, bias: { anxiety: 0.28, confusion: 0.12, joy: -0.2 } },
+  // Negation tail — "〜じゃない" "〜ない" denials weaken connection slightly.
+  { pattern: /(じゃない|ではない|ちがう|違う|そうでもない)/, bias: { confusion: 0.1, joy: -0.08 } },
   { pattern: /(え|うーん|あの|えっと|……|\.\.\.)/, bias: { confusion: 0.12, anxiety: 0.08 } },
   { pattern: /(笑|ｗ|w$|！|!)/, bias: { joy: 0.18 } },
   { pattern: /(映画|カフェ|本|音楽|趣味)/, bias: { joy: 0.18, calm: 0.1 } },

@@ -17,10 +17,10 @@ export const EMOTION_EMOJI: Record<Emotion, string> = {
 };
 
 export const EMOTION_COLOR: Record<Emotion, string> = {
-  joy: "#C9A548",
-  calm: "#5B8C7A",
-  anxiety: "#C27878",
-  confusion: "#7B5BAB",
+  joy: "#d99316",
+  calm: "#3a936b",
+  anxiety: "#c4636e",
+  confusion: "#6f5fb5",
 };
 
 export const EMOTION_TAG: Record<Emotion, string> = {

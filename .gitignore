@@ -1,2 +1,15 @@
 node_modules/
 .next/
+
+# TypeScript incremental build cache — local-only artifact
+tsconfig.tsbuildinfo
+
+# env files (never commit secrets)
+.env
+.env.local
+.env.*.local
+
+# Locally generated mkcert certificates for HTTPS dev (contains private key)
+certificates/
+qhat-url.png
+output/ # ピッチデッキ含めたくない場合
