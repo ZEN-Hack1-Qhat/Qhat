@@ -14,9 +14,10 @@ export interface StoryEpisode {
   // Stable identifier; persisted in localStorage progress so Day numbers
   // can be reordered without breaking saves.
   id: string;
-  // The day label the user sees ("Day 1", "Day 14", …). The gaps are
-  // intentional — sparse days make a 30-day arc feel real without us
-  // authoring 30 episodes.
+  // The day label the user sees ("Day 1", "Day 2", …). Sequential 1..N so
+  // the timeline doesn't read as "1, 3, 5, 7, 10" gaps — that pattern made
+  // users wonder if days were missing. Episode IDs (e.g. day3_short_reaction)
+  // retain the original arc-day for authoring history but aren't shown.
   day: number;
   title: string;
   // One-sentence "what we're learning" message shown before the scene.
@@ -34,6 +35,11 @@ export interface StoryEpisode {
   // episode — don't paraphrase the learning goal; instead give the user
   // *moves* they can try ("〜と言ってみる", "〜だけでOK").
   tips: string[];
+  // Short narrative preface (1–2 sentences) shown at the top of the
+  // briefing. Frames the moment in story-arc terms ("3日後", "また同じ
+  // バス停で") so the day feels like a continuation rather than an
+  // isolated drill. Keep poetic, present tense, second-person implied.
+  intro?: string;
   // Optional small goals tracked live during the conversation. Achieving
   // them isn't required — minTurns is the gate for completion — but they
   // give the practice an explicit checklist instead of leaving the user
@@ -58,10 +64,12 @@ export const STORY_EPISODES: StoryEpisode[] = [
       "沈黙でも気にしない、一言返せたら勝ち",
       "うまく言えなくても、店員さんは業務として返してくれる",
     ],
+    intro:
+      "いつものコンビニ、レジに並ぶ。森野さんが目を合わせて会釈してくれる。今日はまず、声に出して一言。",
   },
   {
     id: "day3_short_reaction",
-    day: 3,
+    day: 2,
     title: "「そうですね」を試す",
     learningGoal: "相手の言葉に短く反応する。沈黙より一言。",
     sceneId: "bus_stop_morning",
@@ -79,10 +87,12 @@ export const STORY_EPISODES: StoryEpisode[] = [
         label: "12文字以下で短く返す",
       },
     ],
+    intro:
+      "バス停の朝。同じ時間にいつもいる海斗さんが、軽く会釈してきた。気まずい沈黙より、短い一言を。",
   },
   {
     id: "day5_echo_back",
-    day: 5,
+    day: 3,
     title: "オウム返しで返す",
     learningGoal: "相手の言葉から一つ拾って返す。「映画ですか」「寒いですね」。",
     sceneId: "bus_stop_echo",
@@ -95,10 +105,12 @@ export const STORY_EPISODES: StoryEpisode[] = [
     goals: [
       { id: "echo", type: "user_echo", label: "相手の言葉を一つ拾って返す" },
     ],
+    intro:
+      "今朝もバスが遅れている。海斗さんが何か話しかけてくれる。出てきた言葉から、ひとつだけ拾ってみる。",
   },
   {
     id: "day7_one_question",
-    day: 7,
+    day: 4,
     title: "一問だけ質問する",
     learningGoal: "返事の最後に「どんな〜？」を一つ足してみる。",
     sceneId: "team_one_question",
@@ -111,10 +123,12 @@ export const STORY_EPISODES: StoryEpisode[] = [
     goals: [
       { id: "ask", type: "user_question", label: "自分から質問を1つする" },
     ],
+    intro:
+      "ゆきはいつもどおり、フランクに話しかけてきた。今日は受けるだけじゃなく、最後にひとつだけ質問を足してみる。",
   },
   {
     id: "day10_recovery",
-    day: 10,
+    day: 5,
     title: "詰まったときの言葉",
     learningGoal: "「うまく言えないんですが」「ちょっと考えてました」で十分。",
     sceneId: "team_recovery",
@@ -131,10 +145,12 @@ export const STORY_EPISODES: StoryEpisode[] = [
         label: "詰まったときの言葉を使う",
       },
     ],
+    intro:
+      "ゆきとの会話で、ふと答えに詰まる瞬間がやってくる。逃げなくていい、「うまく言えないんですが」と正直に。",
   },
   {
     id: "day14_offline_meet",
-    day: 14,
+    day: 6,
     title: "オフ会で初対面",
     learningGoal: "1往復できれば成功。長く話そうとしなくていい。",
     sceneId: "kanto_offline",
@@ -153,10 +169,12 @@ export const STORY_EPISODES: StoryEpisode[] = [
       },
       { id: "ask", type: "user_question", label: "質問を1つしてみる" },
     ],
+    intro:
+      "ついにオフ会の日。会場の隅、開始まで10分。同じくぽつんとしている咲良が、ちらっとこちらを見ている。声をかけるか、待つか。",
   },
   {
     id: "day17_cafe_reunion",
-    day: 17,
+    day: 7,
     title: "カフェで咲良と再会",
     learningGoal: "前に話した人ともう一度。覚えていてくれることを信じる。",
     sceneId: "sakura_cafe",
@@ -179,10 +197,12 @@ export const STORY_EPISODES: StoryEpisode[] = [
         label: "自分のことを一文だけ話す",
       },
     ],
+    intro:
+      "あれから3日後、駅前のカフェで偶然咲良に会う。少し顔を覚えてくれている様子。前回の続きから、もう一歩。",
   },
   {
     id: "day21_senpai",
-    day: 21,
+    day: 8,
     title: "苦手な先輩への返事",
     learningGoal: "結論を先に。理由は1〜2文で。",
     sceneId: "senpai_ask",
@@ -200,10 +220,12 @@ export const STORY_EPISODES: StoryEpisode[] = [
         label: "結論を25文字以内で言い切る",
       },
     ],
+    intro:
+      "田中先輩がやってきた。例の件の返事を、待っている顔つき。今度は曖昧にぼかさず、結論から。",
   },
   {
     id: "day25_interview",
-    day: 25,
+    day: 9,
     title: "面接控室",
     learningGoal: "プレッシャー下でも、緊張を共有する一言で十分。",
     sceneId: "job_interview",
@@ -222,10 +244,12 @@ export const STORY_EPISODES: StoryEpisode[] = [
       },
       { id: "ask", type: "user_question", label: "質問を1つする" },
     ],
+    intro:
+      "面接入室まで3分。控室で他の応募者と二人きり。沈黙が続いている。ここで一言かけられたら、本番が少し楽になる。",
   },
   {
     id: "day28_initiate",
-    day: 28,
+    day: 10,
     title: "自分から雑談を始める",
     learningGoal: "受けるだけじゃなく、こちらから一言かけてみる。",
     sceneId: "team_initiate",
@@ -242,10 +266,12 @@ export const STORY_EPISODES: StoryEpisode[] = [
         label: "自分から最初の一言を出す",
       },
     ],
+    intro:
+      "ゆきが一人で作業している。今日は声をかけられるのを待つ側じゃなく、こっちから話しかけてみる番。",
   },
   {
     id: "day30_reflection",
-    day: 30,
+    day: 11,
     title: "1ヶ月の振り返り",
     learningGoal: "ここまで来たら、もう Qhat を卒業して大丈夫。",
     sceneId: "",

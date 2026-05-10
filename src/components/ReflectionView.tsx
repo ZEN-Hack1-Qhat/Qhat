@@ -4,12 +4,8 @@ import { useEffect, useState } from "react";
 import { BottomNav } from "@/components/BottomNav";
 import { CHARACTERS } from "@/lib/characters";
 import { EMOTION_COLOR, EMOTION_LABEL } from "@/lib/emotion";
-import { STORY_EPISODES, type StoryEpisode } from "@/lib/story";
-import {
-  getEffectiveLines,
-  getStoryProgress,
-  type EffectiveLine,
-} from "@/lib/sessionStore";
+import { type StoryEpisode } from "@/lib/story";
+import { getEffectiveLines, type EffectiveLine } from "@/lib/sessionStore";
 
 interface ReflectionViewProps {
   episode: StoryEpisode;
@@ -28,11 +24,9 @@ export function ReflectionView({
   onComplete,
   onBack,
 }: ReflectionViewProps) {
-  const [completedCount, setCompletedCount] = useState(0);
   const [effectiveLines, setEffectiveLines] = useState<EffectiveLine[]>([]);
 
   useEffect(() => {
-    setCompletedCount(getStoryProgress().length);
     // Sort by absolute delta so the strongest "this really worked" lines
     // surface first. Ties broken by recency. Cap at a comfortable read
     // count — the reflection is a moment, not a feed to scroll.
@@ -42,11 +36,9 @@ export function ReflectionView({
     setEffectiveLines(lines);
   }, []);
 
-  const totalScenes = STORY_EPISODES.filter((e) => e.kind !== "reflection").length;
-
   return (
     <main className="qhat-fade-in min-h-screen bg-[#f7f5f1] text-[#2b2b2b]">
-      <div className="mx-auto flex min-h-screen max-w-[430px] flex-col gap-[18px] px-[18px] py-6">
+      <div className="mx-auto flex min-h-screen max-w-[430px] flex-col gap-[18px] px-[18px] pb-28 pt-6">
         <header className="flex items-center justify-between">
           <button
             onClick={onBack}
@@ -78,17 +70,11 @@ export function ReflectionView({
           <h2 className="mb-3 text-[13px] font-extrabold text-[#49433d]">
             この30日でやってきたこと
           </h2>
-          <p className="mb-3 text-[12px] leading-relaxed text-[#6c665f]">
-            あなたは {completedCount} / {totalScenes} のエピソードを通して、
-            これだけのことを練習しました。
-          </p>
-          <ul className="space-y-1.5 text-[12px] leading-relaxed text-[#5f5a53]">
-            <li>・短い一言だけでも、会話は始まる</li>
-            <li>・相手の言葉から一つ拾えば、続く</li>
-            <li>・詰まったときは、詰まったと言っていい</li>
-            <li>・初対面でも、1往復できれば十分</li>
-            <li>・苦手な相手にも、結論ファーストで届く</li>
-            <li>・自分から声をかけることもできる</li>
+          <ul className="space-y-2 text-[13px] leading-relaxed text-[#5f5a53]">
+            <li>・一言で、会話は始まる</li>
+            <li>・拾って返せば、続く</li>
+            <li>・詰まったら、詰まったと言える</li>
+            <li>・自分からも、声をかけられる</li>
           </ul>
         </section>
 

@@ -104,7 +104,7 @@ export default function HistoryDetailPage() {
 
   return (
     <main className="qhat-fade-in min-h-screen bg-[#f7f5f1] text-[#2b2b2b]">
-      <div className="mx-auto flex min-h-screen max-w-[430px] flex-col gap-[14px] px-[18px] py-6">
+      <div className="mx-auto flex min-h-screen max-w-[430px] flex-col gap-[14px] px-[18px] pb-28 pt-6">
         <header className="flex items-center justify-between">
           <Link
             href="/history"
@@ -167,6 +167,43 @@ export default function HistoryDetailPage() {
                     </div>
                   ))}
                 </div>
+              </section>
+            )}
+
+            {session.review && (
+              <section className="rounded-[24px] border border-black/5 bg-white/85 p-4 shadow-sm">
+                <h2 className="mb-3 text-[12px] font-extrabold text-[#49433d]">
+                  この会話のふりかえり
+                </h2>
+                <div className="mb-3 rounded-[14px] border border-[#3d8f54]/20 bg-[#f5faf6] p-3">
+                  <p className="mb-1 text-[10px] font-extrabold tracking-wide text-[#3d8f54]">
+                    ✓ 良かった点
+                  </p>
+                  {session.review.goodPoint.quote && (
+                    <p className="mb-1 text-[12px] font-bold leading-relaxed text-[#49433d]">
+                      「{session.review.goodPoint.quote}」
+                    </p>
+                  )}
+                  <p className="text-[11px] leading-relaxed text-[#5f5a53]">
+                    {session.review.goodPoint.reason}
+                  </p>
+                </div>
+                <div className="mb-3 rounded-[14px] border border-[#7a5e1f]/20 bg-[#fff5d8]/50 p-3">
+                  <p className="mb-1 text-[10px] font-extrabold tracking-wide text-[#7a5e1f]">
+                    → 次に試すこと
+                  </p>
+                  <p className="text-[12px] leading-relaxed text-[#49433d]">
+                    {session.review.nextStep}
+                  </p>
+                </div>
+                <p className="text-[12px] font-extrabold leading-relaxed text-[#49433d]">
+                  {session.review.verdict}
+                </p>
+                <p className="mt-2 text-right text-[9px] font-bold text-[#9a938b]">
+                  {session.review.mode === "mock"
+                    ? "ローカル判定"
+                    : `判定: ${session.review.mode}`}
+                </p>
               </section>
             )}
 

@@ -28,7 +28,7 @@ export default function HistoryPage() {
 
   return (
     <main className="min-h-screen bg-[#f7f5f1] text-[#2b2b2b]">
-      <div className="mx-auto flex min-h-screen max-w-[430px] flex-col gap-[18px] px-[18px] py-6">
+      <div className="mx-auto flex min-h-screen max-w-[430px] flex-col gap-[18px] px-[18px] pb-28 pt-6">
         <header className="flex items-center justify-between">
           <h1 className="text-[22px] font-extrabold">履歴</h1>
           <span className="text-[12px] font-bold text-[#8a8178]">

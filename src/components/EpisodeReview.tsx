@@ -5,6 +5,7 @@ import { BottomNav } from "@/components/BottomNav";
 import type { Goal } from "@/lib/goals";
 import { checkAllGoals } from "@/lib/goals";
 import type { StoryEpisode } from "@/lib/story";
+import { attachReviewToSession } from "@/lib/sessionStore";
 import type { Message } from "@/lib/types";
 
 interface EpisodeReviewProps {
@@ -14,6 +15,10 @@ interface EpisodeReviewProps {
   // review needs them so the LLM (or the heuristic fallback) can ground
   // its praise/next-step in what actually happened.
   llmHitGoalIds: string[];
+  // localStorage session id to attach this review to. Null when saving
+  // is disabled or the session was never persisted — in that case the
+  // review is shown live but not preserved for the history page.
+  sessionId: string | null;
   // User pressed "次へ"; return to the timeline.
   onNext: () => void;
 }
@@ -33,6 +38,7 @@ export function EpisodeReview({
   episode,
   messages,
   llmHitGoalIds,
+  sessionId,
   onNext,
 }: EpisodeReviewProps) {
   const [result, setResult] = useState<ReviewResult | null>(null);
@@ -78,7 +84,19 @@ export function EpisodeReview({
       })
       .then((data) => {
         if (cancelled) return;
-        setResult(data as ReviewResult);
+        const r = data as ReviewResult;
+        setResult(r);
+        // Persist the review onto the saved session so the history detail
+        // page can show it later. No-op when saving is disabled (sessionId
+        // is null) or when the session can't be found.
+        if (sessionId) {
+          attachReviewToSession(sessionId, {
+            goodPoint: r.goodPoint,
+            nextStep: r.nextStep,
+            verdict: r.verdict,
+            mode: r.mode,
+          });
+        }
       })
       .catch((e: Error) => {
         if (cancelled) return;
@@ -88,11 +106,11 @@ export function EpisodeReview({
     return () => {
       cancelled = true;
     };
-  }, [episode, messages, llmHitGoalIds]);
+  }, [episode, messages, llmHitGoalIds, sessionId]);
 
   return (
     <main className="qhat-fade-in min-h-screen bg-[#f7f5f1] text-[#2b2b2b]">
-      <div className="mx-auto flex min-h-screen max-w-[430px] flex-col gap-[14px] px-[18px] py-6">
+      <div className="mx-auto flex min-h-screen max-w-[430px] flex-col gap-[14px] px-[18px] pb-28 pt-6">
         <header className="flex items-center justify-between">
           <span className="text-[12px] font-extrabold text-[#5f5a53]">
             ふりかえり
@@ -151,7 +169,16 @@ export function EpisodeReview({
               </p>
             </section>
 
-            <section className="rounded-[24px] border border-[#f4be42]/40 bg-[#fff5d8]/80 p-5 shadow-sm">
+            <section className="relative rounded-[24px] border border-[#f4be42]/40 bg-[#fff5d8]/80 p-5 shadow-sm">
+              {/* Tiny celebration that puffs up from the verdict card the
+                  moment the review lands. Three emoji rise, fade, gone in
+                  ~1.5s — present enough to read as "you did a thing"
+                  without turning into a confetti party. */}
+              <div className="qhat-celebration" aria-hidden>
+                <span>✨</span>
+                <span>🎉</span>
+                <span>🌿</span>
+              </div>
               <p className="text-[14px] font-extrabold leading-relaxed text-[#49433d]">
                 {result.verdict}
               </p>

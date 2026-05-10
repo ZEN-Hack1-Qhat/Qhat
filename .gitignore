@@ -8,3 +8,8 @@ tsconfig.tsbuildinfo
 .env
 .env.local
 .env.*.local
+
+# Locally generated mkcert certificates for HTTPS dev (contains private key)
+certificates/
+qhat-url.png
+output/ # ピッチデッキ含めたくない場合

@@ -66,7 +66,7 @@ export default function AnalysisPage() {
 
   return (
     <main className="min-h-screen bg-[#f7f5f1] text-[#2b2b2b]">
-      <div className="mx-auto flex min-h-screen max-w-[430px] flex-col gap-[18px] px-[18px] py-6">
+      <div className="mx-auto flex min-h-screen max-w-[430px] flex-col gap-[18px] px-[18px] pb-28 pt-6">
         <header>
           <h1 className="text-[22px] font-extrabold">分析</h1>
           <p className="mt-1 text-[12px] font-bold text-[#8a8178]">

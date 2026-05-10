@@ -17,8 +17,13 @@ import { SCENES } from "./scenes";
 export class NoLLMKeyError extends Error {}
 export class LLMCallError extends Error {}
 
-const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+// Gemini 3 Flash Preview — frontier-class generation at Flash latency.
+// Override via GEMINI_MODEL env if a newer/different model becomes
+// available (e.g. gemini-3.1-flash-preview when it gets exposed for this
+// account). Falls back to 2.5-flash-style behaviour automatically since
+// the request shape is identical.
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const RESPONSE_SCHEMA = {
   type: "object",

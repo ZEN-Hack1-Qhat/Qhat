@@ -6,7 +6,6 @@ import { CHARACTERS } from "@/lib/characters";
 import { dominant, EMOTION_LABEL, EMOTIONS } from "@/lib/emotion";
 import { speak, transcribeWithWhisper, useSpeechRecognition } from "@/lib/speech";
 import { ConversationLog } from "@/components/ConversationLog";
-import { BottomNav } from "@/components/BottomNav";
 import { StoryView } from "@/components/StoryView";
 import { ReflectionView } from "@/components/ReflectionView";
 import { EpisodeBriefing } from "@/components/EpisodeBriefing";
@@ -38,6 +37,10 @@ type Screen =
       episode: StoryEpisode;
       messages: Message[];
       llmHitGoalIds: string[];
+      // The id of the just-finished session in localStorage, if saving was
+      // enabled. EpisodeReview uses it to attach the review result back so
+      // the history detail page can show it later.
+      sessionId: string | null;
     }
   | { kind: "reflection"; episode: StoryEpisode };
 
@@ -73,10 +76,17 @@ export default function HomePage() {
     (
       episode: StoryEpisode,
       messages: Message[],
-      llmHitGoalIds: string[]
+      llmHitGoalIds: string[],
+      sessionId: string | null
     ) => {
       markEpisodeComplete(episode.id);
-      setScreen({ kind: "review", episode, messages, llmHitGoalIds });
+      setScreen({
+        kind: "review",
+        episode,
+        messages,
+        llmHitGoalIds,
+        sessionId,
+      });
     },
     []
   );
@@ -124,6 +134,7 @@ export default function HomePage() {
         episode={screen.episode}
         messages={screen.messages}
         llmHitGoalIds={screen.llmHitGoalIds}
+        sessionId={screen.sessionId}
         onNext={finishReview}
       />
     );
@@ -132,8 +143,8 @@ export default function HomePage() {
     <ConversationView
       key={screen.episode.id}
       episode={screen.episode}
-      onComplete={(messages, llmHitGoalIds) =>
-        finishConversation(screen.episode, messages, llmHitGoalIds)
+      onComplete={(messages, llmHitGoalIds, sessionId) =>
+        finishConversation(screen.episode, messages, llmHitGoalIds, sessionId)
       }
       onAbandon={closeWithoutCompleting}
     />
@@ -157,43 +168,58 @@ const emotionUI: Record<
     fill: string;
     glow: string;
     blob: string;
+    // Ear colors are picked to match the blob gradient — not `color` —
+    // because the blob is what the user actually sees on the body. Using
+    // `color` made calm ears go green while the body stayed gold, so the
+    // ears looked stuck on. Pinning ears to the blob keeps the head
+    // reading as one creature.
+    earOuter: string;
+    earInner: string;
     helper: string;
     mouth: "smile" | "happy" | "sad" | "flat";
   }
 > = {
   joy: {
-    color: "#e2a51b",
+    color: "#d99316",
     fill: "linear-gradient(90deg, #ffd86a, #f5a623)",
-    glow: "rgba(255, 210, 90, 0.28)",
+    glow: "rgba(255, 210, 90, 0.26)",
     blob:
       "radial-gradient(circle at 30% 22%, rgba(255,255,255,0.75), transparent 24%), linear-gradient(180deg, #ffe37a, #ffb13b)",
+    earOuter: "#ffd86a",
+    earInner: "#f5a623",
     helper: "少し楽しそう。話しやすい空気になってきたかも。",
     mouth: "happy",
   },
   calm: {
-    color: "#3d8f54",
-    fill: "linear-gradient(90deg, #7edb95, #47bd68)",
-    glow: "rgba(89, 194, 116, 0.24)",
+    color: "#3a936b",
+    fill: "linear-gradient(90deg, #9ae3b8, #4ec48a)",
+    glow: "rgba(78, 196, 138, 0.22)",
     blob:
-      "radial-gradient(circle at 30% 22%, rgba(255,255,255,0.7), transparent 24%), linear-gradient(180deg, #ffd96f, #f4b93b)",
+      "radial-gradient(circle at 30% 22%, rgba(255,255,255,0.7), transparent 24%), linear-gradient(180deg, #b6efce, #4cc18a)",
+    earOuter: "#b6efce",
+    earInner: "#4cc18a",
     helper: "無理にうまく話さなくても大丈夫。少しずつでいいよ。",
     mouth: "smile",
   },
   anxiety: {
-    color: "#c46b6b",
-    fill: "linear-gradient(90deg, #ffaaa5, #e57373)",
-    glow: "rgba(229, 115, 115, 0.24)",
+    color: "#c4636e",
+    fill: "linear-gradient(90deg, #ffb1ad, #e07682)",
+    glow: "rgba(224, 118, 130, 0.22)",
     blob:
-      "radial-gradient(circle at 30% 22%, rgba(255,255,255,0.65), transparent 24%), linear-gradient(180deg, #ffb0a8, #e87a7a)",
+      "radial-gradient(circle at 30% 22%, rgba(255,255,255,0.65), transparent 24%), linear-gradient(180deg, #ffc1bb, #e07682)",
+    earOuter: "#ffc1bb",
+    earInner: "#e07682",
     helper: "少し緊張しているみたい。ゆっくり言葉を選んで大丈夫。",
     mouth: "sad",
   },
   confusion: {
-    color: "#7b68b6",
-    fill: "linear-gradient(90deg, #c7b8ff, #8f7ae6)",
-    glow: "rgba(143, 122, 230, 0.22)",
+    color: "#6f5fb5",
+    fill: "linear-gradient(90deg, #cfc1ff, #8f7ae6)",
+    glow: "rgba(143, 122, 230, 0.20)",
     blob:
-      "radial-gradient(circle at 30% 22%, rgba(255,255,255,0.65), transparent 24%), linear-gradient(180deg, #c8bbff, #8d7be8)",
+      "radial-gradient(circle at 30% 22%, rgba(255,255,255,0.65), transparent 24%), linear-gradient(180deg, #d4c8ff, #8f7ae6)",
+    earOuter: "#d4c8ff",
+    earInner: "#8f7ae6",
     helper: "少し戸惑っているかも。短く言い直してみると伝わりやすい。",
     mouth: "flat",
   },
@@ -203,18 +229,6 @@ const emotionUI: Record<
 // pure white. Used by the cat ear to derive a body-blending outer color from
 // the saturated emotion accent — keeps the ears tonally consistent with the
 // dominant-emotion body color regardless of which emotion is active.
-function lighten(hex: string, amount: number): string {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  const r2 = Math.round(r + (255 - r) * amount);
-  const g2 = Math.round(g + (255 - g) * amount);
-  const b2 = Math.round(b + (255 - b) * amount);
-  const hx = (n: number) => n.toString(16).padStart(2, "0");
-  return `#${hx(r2)}${hx(g2)}${hx(b2)}`;
-}
-
 function hexToRgba(hex: string, alpha: number): string {
   const h = hex.replace("#", "");
   const r = parseInt(h.slice(0, 2), 16);
@@ -223,33 +237,37 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-// Reusable character face. The dominant emotion drives eye shape, mouth shape,
-// and body motion — the user's primary read for "how does the character feel".
+type CharacterActivity =
+  | "idle"
+  | "listening"
+  | "thinking"
+  | "speaking"
+  | "celebrating";
+
+// Reusable character face. The dominant emotion drives eye shape/mouth shape;
+// the activity prop drives body language so the character feels present while
+// listening, thinking, and speaking.
 function CharacterFace({
   emotion,
   size = 190,
   showThinking = false,
+  activity = "idle",
 }: {
   emotion: EmotionProbs;
   size?: number;
   showThinking?: boolean;
+  activity?: CharacterActivity;
 }) {
   const dom = dominant(emotion);
   const ui = emotionUI[dom];
   const k = size / 190;
 
-  const animClass =
-    dom === "joy"
-      ? "animate-[bounce_1.8s_ease-in-out_infinite]"
-      : dom === "anxiety"
-      ? "animate-[pulse_1.2s_ease-in-out_infinite]"
-      : dom === "confusion"
-      ? "animate-[wobble_2.6s_ease-in-out_infinite]"
-      : "animate-[floaty_3.8s_ease-in-out_infinite]";
+  const motionClass = `qhat-character qhat-character--${dom} qhat-character--${activity}`;
 
   const eyeTop = 78 * k;
   const eyeSide = 62 * k;
   const mouthTop = 116 * k;
+  const isSpeakingNow = activity === "speaking";
 
   const renderEye = (side: "left" | "right") => {
     const sideStyle =
@@ -315,6 +333,14 @@ function CharacterFace({
   };
 
   const mouthStyle: React.CSSProperties = (() => {
+    if (isSpeakingNow) {
+      return {
+        width: 28 * k,
+        height: 22 * k,
+        background: "#2a241d",
+        borderRadius: "50%",
+      };
+    }
     if (ui.mouth === "happy") {
       return {
         width: 42 * k,
@@ -349,7 +375,7 @@ function CharacterFace({
 
   return (
     <div
-      className={`relative transition-all duration-700 ${animClass}`}
+      className={`relative transition-all duration-700 ${motionClass}`}
       style={{
         width: size,
         height: size,
@@ -363,40 +389,67 @@ function CharacterFace({
         }px ${20 * k}px rgba(255,255,255,0.12)`,
       }}
     >
-      {/* Cat ears.
-          Outer = lighten(ui.color, 0.4): a body-adjacent shade so the ear
-          reads as part of the head, not glued on. Inner = ui.color: the
-          saturated dominant tone for depth. Wider base + softer apex so the
-          ears feel chunky and friendly rather than sharp horns. */}
+      <div className="qhat-character-ground" aria-hidden />
+      <div className="qhat-character-shine" aria-hidden />
+      <div
+        className="qhat-character-cheek qhat-character-cheek--left"
+        aria-hidden
+        style={{
+          width: 16 * k,
+          height: 8 * k,
+          left: 45 * k,
+          top: 106 * k,
+        }}
+      />
+      <div
+        className="qhat-character-cheek qhat-character-cheek--right"
+        aria-hidden
+        style={{
+          width: 16 * k,
+          height: 8 * k,
+          right: 45 * k,
+          top: 106 * k,
+        }}
+      />
+      {/* Cat ears. Outer = blob top-stop, inner = blob bottom-stop —
+          picking colors from the body's gradient (not ui.color) keeps the
+          head reading as one creature even when ui.color and the blob
+          diverge (e.g. calm: green color, gold blob). The base sits a few
+          pixels INSIDE the head so the ears blend into the round shape
+          instead of poking off at a tangent. */}
       <svg
         className="absolute pointer-events-none"
         style={{
-          top: -22 * k,
+          top: -16 * k,
           left: 0,
           width: size,
-          height: 28 * k,
+          height: 22 * k,
           overflow: "visible",
         }}
-        viewBox="0 0 190 28"
+        viewBox="0 0 190 22"
         preserveAspectRatio="none"
       >
-        {/* Left ear */}
+        {/* Left ear — wider rounded base sitting flush with the head */}
         <path
-          d="M 36 28 Q 40 22 48 8 Q 53 2 58 8 Q 66 22 70 28 Z"
-          fill={lighten(ui.color, 0.4)}
+          className="qhat-character-ear qhat-character-ear--left"
+          d="M 40 22 Q 44 16 50 6 Q 54 1 58 6 Q 64 16 68 22 Q 54 25 40 22 Z"
+          fill={ui.earOuter}
         />
         <path
-          d="M 45 28 Q 49 18 53 12 Q 57 18 61 28 Z"
-          fill={ui.color}
+          className="qhat-character-ear-inner qhat-character-ear--left"
+          d="M 47 22 Q 50 14 54 9 Q 58 14 61 22 Q 54 24 47 22 Z"
+          fill={ui.earInner}
         />
         {/* Right ear */}
         <path
-          d="M 120 28 Q 124 22 132 8 Q 137 2 142 8 Q 150 22 154 28 Z"
-          fill={lighten(ui.color, 0.4)}
+          className="qhat-character-ear qhat-character-ear--right"
+          d="M 122 22 Q 126 16 132 6 Q 136 1 140 6 Q 146 16 150 22 Q 136 25 122 22 Z"
+          fill={ui.earOuter}
         />
         <path
-          d="M 129 28 Q 133 18 137 12 Q 141 18 145 28 Z"
-          fill={ui.color}
+          className="qhat-character-ear-inner qhat-character-ear--right"
+          d="M 129 22 Q 132 14 136 9 Q 140 14 143 22 Q 136 24 129 22 Z"
+          fill={ui.earInner}
         />
       </svg>
 
@@ -412,7 +465,9 @@ function CharacterFace({
       {renderEye("right")}
 
       <div
-        className="absolute left-1/2 -translate-x-1/2"
+        className={`absolute left-1/2 -translate-x-1/2 ${
+          isSpeakingNow ? "qhat-character-mouth-speaking" : ""
+        }`}
         style={{ ...mouthStyle, top: mouthTop }}
       />
     </div>
@@ -426,10 +481,18 @@ const PROACTIVE_MAX = 3;
 // Hands-free: silence threshold to auto-submit, and minimum chars to avoid
 // firing on "あ" / "えっと". A short reply like "うん" / "はい" should still
 // be allowed to submit, hence MIN_CHARS = 2.
-const HANDS_FREE_SUBMIT_MS = 3500;
+//
+// 1.5s — matches Google Assistant / Siri endpointing. Fast feedback wins
+// over leaving room for hesitation; if a user is mid-thought they can keep
+// talking (level threshold resets the timer).
+const HANDS_FREE_SUBMIT_MS = 1500;
 const HANDS_FREE_MIN_CHARS = 2;
-// RMS audio level above which we consider the user to be speaking.
-const VOICE_LEVEL_THRESHOLD = 0.04;
+// RMS audio level above which we consider the user to be speaking. 0.04 was
+// noticeably too high on phone mics — typical conversational volume on an
+// iPhone hovers around 0.02–0.05, so anything below 0.04 was treated as
+// silence and the auto-submit timer fired prematurely. 0.02 is just above
+// the noise floor for most phone mics.
+const VOICE_LEVEL_THRESHOLD = 0.02;
 
 function ConversationView({
   episode,
@@ -439,7 +502,11 @@ function ConversationView({
   episode: StoryEpisode;
   // User tapped "完了" — pass the transcript and the LLM-judged goal hits
   // up so the parent can route to the Review screen with that context.
-  onComplete: (messages: Message[], llmHitGoalIds: string[]) => void;
+  onComplete: (
+    messages: Message[],
+    llmHitGoalIds: string[],
+    sessionId: string | null
+  ) => void;
   // User tapped the back arrow — leave without marking complete.
   onAbandon: () => void;
 }) {
@@ -491,6 +558,13 @@ function ConversationView({
   const [startedAt] = useState(() => Date.now());
 
   const [loading, setLoading] = useState(false);
+  // Mirror the loading flag in a ref so polling/closures (hands-free
+  // auto-submit, auto-listen) can read the *current* in-flight state
+  // without waiting for React to re-render. Without this, the 250ms
+  // poll fires send() again before the first call's setLoading(true)
+  // reaches the closure — surface symptom: "通信に失敗" from the second
+  // request being interrupted.
+  const loadingRef = useRef(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [error, setError] = useState("");
   const [now, setNow] = useState(Date.now());
@@ -513,6 +587,11 @@ function ConversationView({
   // Last time the mic picked up audio above VOICE_LEVEL_THRESHOLD. Used by
   // the hands-free auto-submit timer to detect end of utterance.
   const lastSoundAtRef = useRef<number>(Date.now());
+  // Live mic level (0..1). Drives the visible glow/ring around the mic
+  // button so the user can SEE that audio is being captured. Without this
+  // the button just pulses on a fixed cadence regardless of actual input,
+  // which made users wonder if the mic was really listening.
+  const [micLevel, setMicLevel] = useState(0);
 
   const dom = dominant(emotion);
   const ui = emotionUI[dom];
@@ -525,13 +604,6 @@ function ConversationView({
   const lastMessage =
     lastCharacterMessage?.text ?? "こんにちは、どんな会話を練習しますか？";
 
-  const silentSeconds = Math.max(0, (now - lastInteractionAt) / 1000);
-  const willProactive =
-    proactiveEnabled &&
-    !loading &&
-    silentSeconds >= PROACTIVE_IDLE_MS / 1000 - 3 &&
-    proactiveCount < PROACTIVE_MAX;
-
   const recognition = useSpeechRecognition({
     onInterim: (t) => {
       latestTextRef.current = t;
@@ -543,8 +615,22 @@ function ConversationView({
     },
     onLevel: (rms) => {
       if (rms > VOICE_LEVEL_THRESHOLD) lastSoundAtRef.current = Date.now();
+      // Smooth the meter value a bit (3:1 EMA) so the glow doesn't jitter
+      // every frame. Cap at 0.5 RMS — louder than that and the visual
+      // already saturated, more growth just adds noise.
+      setMicLevel((prev) => prev * 0.7 + Math.min(0.5, rms) * 0.3);
     },
+    onError: (msg) => setError(msg),
   });
+  const characterActivity: CharacterActivity = loading
+    ? "thinking"
+    : landing
+    ? "celebrating"
+    : isSpeaking
+    ? "speaking"
+    : recognition.running
+    ? "listening"
+    : "idle";
 
   const send = useCallback(
     async (overrideText?: string, opts?: { proactive?: boolean }) => {
@@ -553,6 +639,8 @@ function ConversationView({
       let userText = (overrideText ?? latestTextRef.current ?? text).trim();
 
       if (!opts?.proactive && !userText) return;
+      if (loadingRef.current) return;
+      loadingRef.current = true;
 
       setError("");
 
@@ -696,20 +784,25 @@ function ConversationView({
         setMessages((prev) => [...prev, data.characterMessage!]);
         setLastInteractionAt(Date.now());
 
-        // Chat mode: render the message but skip TTS — user is reading, not
-        // listening, so keep things silent.
-        if (ioMode === "voice") {
-          setIsSpeaking(true);
-          speak(data.characterMessage.text, {
-            ...character.voice,
-            onEnd: () => setIsSpeaking(false),
-            onError: () => setIsSpeaking(false),
-          });
-        }
-      } catch (e) {
+        // Always speak — even in chat mode the character voice carries the
+        // emotion read that text alone can't. VOICEVOX preferred, browser TTS
+        // as fallback (handled inside speak()).
+        setIsSpeaking(true);
+        speak(data.characterMessage.text, {
+          ...character.voice,
+          onEnd: () => setIsSpeaking(false),
+          onError: () => setIsSpeaking(false),
+        });
+      } catch (e: any) {
+        // Surface the underlying reason — the bare "通信に失敗" message
+        // hid TypeError vs AbortError vs cloudflared/origin issues, which
+        // each need a different fix. Keep the prefix users already know
+        // so it still reads as a network-class problem.
         console.error(e);
-        setError("通信に失敗しました");
+        const detail = e?.message ?? e?.name ?? "不明なエラー";
+        setError(`通信に失敗しました: ${detail}`);
       } finally {
+        loadingRef.current = false;
         setLoading(false);
       }
     },
@@ -717,6 +810,15 @@ function ConversationView({
   );
 
   const handleMic = async () => {
+    // Surface up-front when the browser doesn't expose SpeechRecognition.
+    // iOS Safari has it since 14.5; older Android WebView / in-app browsers
+    // (LINE, Twitter, etc.) often don't — those need to "Open in Safari".
+    if (!recognition.supported) {
+      setError(
+        "音声入力に対応していないブラウザです。Safari/Chrome で開き直してください。"
+      );
+      return;
+    }
     if (recognition.running) {
       // Tapping the mic while recording: submit if we have text, otherwise
       // just stop. send() handles capturing the audio for Whisper before
@@ -730,16 +832,12 @@ function ConversationView({
       return;
     }
 
+    setError("");
     latestTextRef.current = "";
     setText("");
     recognition.resetFinal();
     lastSoundAtRef.current = Date.now();
     await recognition.start();
-  };
-
-  const setHint = (hint: string) => {
-    latestTextRef.current = hint;
-    setText(hint);
   };
 
   useEffect(() => {
@@ -827,11 +925,23 @@ function ConversationView({
     }
   }, [ioMode, recognition]);
 
+  // Drop the mic-level glow back to 0 the moment the mic stops, otherwise
+  // the last reading lingers as a stuck halo around the now-idle button.
+  useEffect(() => {
+    if (!recognition.running) setMicLevel(0);
+  }, [recognition.running]);
+
   useEffect(() => {
     if (!proactiveEnabled) return;
     if (loading) return;
     if (text.trim()) return;
     if (proactiveCount >= PROACTIVE_MAX) return;
+    // Don't fire while the user is actively recording. A pause mid-utterance
+    // is the user thinking, not silence to fill — barging in interrupts the
+    // very practice they're trying to do.
+    if (recognition.running) return;
+    // Don't fire while the assistant is still speaking the previous reply.
+    if (isSpeaking) return;
 
     const idle = Date.now() - lastInteractionAt;
     const cooldown = Date.now() - lastProactiveAt;
@@ -849,6 +959,8 @@ function ConversationView({
     lastInteractionAt,
     lastProactiveAt,
     proactiveEnabled,
+    recognition.running,
+    isSpeaking,
     send,
   ]);
 
@@ -856,16 +968,47 @@ function ConversationView({
 
   return (
     <main className="qhat-fade-in min-h-screen bg-[#f7f5f1] text-[#2b2b2b]">
-      <div className="mx-auto flex min-h-screen max-w-[430px] flex-col gap-[18px] px-[18px] py-6">
+      {/* Conversation is the in-flight screen — kept tight on vertical so it
+          fits a typical phone viewport without scrolling. The back button
+          and 完了 gate replace the BottomNav as the way out.
+          `min-h-[100dvh]` handles iOS/Android dynamic viewport (address bar
+          collapsing/expanding). `touch-manipulation` kills the 300ms tap
+          delay on mobile browsers. */}
+      <div
+        className="mx-auto flex min-h-[100dvh] max-w-[430px] flex-col gap-2.5 px-[18px] pt-3"
+        style={{
+          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+          touchAction: "manipulation",
+        }}
+      >
+        {/* "響いた" toast — anchored to the very top of the conversation
+            screen so it never overlaps the character or message bubble.
+            pointer-events-none keeps taps falling through to the underlying
+            controls; auto-clears after 2.4s via the existing landing effect. */}
+        {landing && (
+          <div className="qhat-landing-pop pointer-events-none fixed left-1/2 top-2 z-30 -translate-x-1/2 whitespace-nowrap rounded-full border border-[#f4be42] bg-white/95 px-3.5 py-1.5 shadow-[0_8px_22px_rgba(244,190,66,0.35)]">
+            <span className="text-[13px] font-extrabold text-[#7a5e1f]">
+              {landing.emotion === "joy" && landing.sign > 0
+                ? "✨ 喜んでくれた"
+                : landing.emotion === "calm" && landing.sign > 0
+                ? "🌿 落ち着いてくれた"
+                : landing.emotion === "anxiety" && landing.sign < 0
+                ? "💧 緊張がほぐれた"
+                : landing.emotion === "confusion" && landing.sign < 0
+                ? "💡 伝わった"
+                : "✨ 響いた"}
+            </span>
+          </div>
+        )}
         <header className="flex items-center justify-between">
           <button
             onClick={onAbandon}
             type="button"
             aria-label="ストーリーに戻る"
-            className="flex items-center gap-2 rounded-full border border-black/5 bg-white/80 px-3 py-1.5 text-[12px] font-extrabold text-[#5f5a53] backdrop-blur transition active:scale-[0.98]"
+            className="flex items-center gap-2 rounded-full border border-black/5 bg-white/80 px-3 py-1.5 text-[13px] font-extrabold text-[#5f5a53] backdrop-blur transition active:scale-[0.98]"
           >
             <span aria-hidden>←</span>
-            <span className="max-w-[140px] truncate">
+            <span className="max-w-[160px] truncate">
               Day {episode.day}・{episode.title}
             </span>
           </button>
@@ -880,26 +1023,26 @@ function ConversationView({
               role="tab"
               aria-selected={ioMode === "voice"}
               onClick={() => setIoMode("voice")}
-              className={`rounded-full px-3 py-1.5 transition ${
+              className={`rounded-full px-2.5 py-1 transition ${
                 ioMode === "voice"
                   ? "bg-[#f4be42] text-[#2a241d]"
                   : "text-[#6c665f]"
               }`}
             >
-              🎤 音声
+              🎤
             </button>
             <button
               type="button"
               role="tab"
               aria-selected={ioMode === "chat"}
               onClick={() => setIoMode("chat")}
-              className={`rounded-full px-3 py-1.5 transition ${
+              className={`rounded-full px-2.5 py-1 transition ${
                 ioMode === "chat"
                   ? "bg-[#f4be42] text-[#2a241d]"
                   : "text-[#6c665f]"
               }`}
             >
-              💬 チャット
+              💬
             </button>
           </div>
         </header>
@@ -909,12 +1052,12 @@ function ConversationView({
             moves the user can try. Chips flip from outline to filled when
             their condition is met, so the user sees real-time confirmation
             that what they just said landed. */}
-        <div className="flex flex-col gap-1.5 border-b border-black/5 pb-2.5">
+        <div className="flex flex-col gap-1.5 border-b border-black/5 pb-2">
           <div className="flex items-center gap-2">
-            <span className="shrink-0 rounded-full bg-[#fff3d2] px-2 py-0.5 text-[10px] font-extrabold text-[#7a5e1f]">
+            <span className="shrink-0 rounded-full bg-[#fff3d2] px-2 py-0.5 text-[11px] font-extrabold text-[#7a5e1f]">
               目的
             </span>
-            <p className="truncate text-[12px] font-bold text-[#5f5a53]">
+            <p className="truncate text-[13px] font-bold text-[#5f5a53]">
               {episode.learningGoal}
             </p>
           </div>
@@ -927,13 +1070,16 @@ function ConversationView({
                 // turn order); the LLM catches paraphrased echoes and
                 // indirect questions the regex would miss.
                 const finalDone = done || llmHitGoals.has(goal.id);
+                // The key encodes both the goal id and its state. When
+                // state flips, React remounts the chip, which restarts
+                // the qhat-goal-pop animation — one pop per achievement.
                 return (
                   <span
-                    key={goal.id}
-                    className={`rounded-full border px-2 py-0.5 text-[10px] font-extrabold transition ${
+                    key={`${goal.id}_${finalDone}`}
+                    className={`rounded-full border px-2.5 py-1 text-[12px] font-extrabold ${
                       finalDone
-                        ? "border-[#3d8f54] bg-[#e8f3ec] text-[#3d8f54]"
-                        : "border-black/10 bg-white/60 text-[#8a8178]"
+                        ? "qhat-goal-pop border-[#3d8f54] bg-[#e8f3ec] text-[#3d8f54]"
+                        : "border-black/10 bg-white/60 text-[#8a8178] transition"
                     }`}
                   >
                     {finalDone ? "✓ " : "⃝ "}
@@ -946,7 +1092,7 @@ function ConversationView({
         </div>
 
         {ioMode === "voice" && (
-        <section className="relative flex flex-1 flex-col items-center justify-center gap-[18px] pt-2">
+        <section className="relative flex flex-1 flex-col items-center justify-center gap-3 pt-1 min-h-0">
           {/* Soft single-color glow tied to the dominant emotion. The 4-color
               distribution lives in the heart-ring inside the character now,
               so the surrounding canvas stays quiet. */}
@@ -954,8 +1100,8 @@ function ConversationView({
             <div
               className="absolute rounded-full blur-2xl transition-all duration-700"
               style={{
-                width: 260,
-                height: 260,
+                width: 200,
+                height: 200,
                 background: ui.glow,
                 opacity: 0.9,
               }}
@@ -963,8 +1109,9 @@ function ConversationView({
             <div className="relative z-10">
               <CharacterFace
                 emotion={emotion}
-                size={190}
-                showThinking={silentSeconds >= 5}
+                size={150}
+                showThinking={loading}
+                activity={characterActivity}
               />
             </div>
 
@@ -973,37 +1120,14 @@ function ConversationView({
                 the partner moved so the user gets a specific read, not a
                 generic confetti — "緊張がほぐれた" lands very differently
                 from "喜んでくれた" even though both are wins. */}
-            {landing && (
-              <div className="qhat-landing-pop pointer-events-none absolute -top-2 z-20 rounded-full border border-[#f4be42] bg-white/95 px-3 py-1.5 shadow-[0_8px_22px_rgba(244,190,66,0.35)]">
-                <span className="text-[12px] font-extrabold text-[#7a5e1f]">
-                  {landing.emotion === "joy" && landing.sign > 0
-                    ? "✨ 喜んでくれた"
-                    : landing.emotion === "calm" && landing.sign > 0
-                    ? "🌿 落ち着いてくれた"
-                    : landing.emotion === "anxiety" && landing.sign < 0
-                    ? "💧 緊張がほぐれた"
-                    : landing.emotion === "confusion" && landing.sign < 0
-                    ? "💡 伝わった"
-                    : "✨ 響いた"}
-                </span>
-              </div>
-            )}
           </div>
 
-          {/* Circular emotion-density meter: 4 radial gradients pinned to the
-              4 corners of a small circle, each tinted with alpha = its
-              emotion's probability. The strongest emotion floods its quadrant
-              while quieter ones blend softly — densities read at a glance and
-              shift gradually ("じわじわ") rather than snapping. Labels sit
-              just outside the circle so the field inside stays clean. */}
-          <div className="flex flex-col items-center gap-1.5">
-            {silentSeconds >= 3 && (
-              <div className="text-[11px] font-bold text-[#8a8178]">
-                間 {silentSeconds.toFixed(1)}s
-                {willProactive ? " ・ そろそろ話すかも" : ""}
-              </div>
-            )}
-            <div className="relative h-[140px] w-[140px]">
+          {/* Compact emotion meter — circle shrunk and labels enlarged so
+              numbers actually read on a phone. The 4-corner gradient still
+              gives an at-a-glance density read; labels are bumped up so
+              the percentages aren't squinting territory. */}
+          <div className="flex flex-col items-center gap-1">
+            <div className="relative h-[120px] w-[120px]">
               <div
                 className="absolute inset-0 rounded-full border border-black/5 shadow-sm transition-all duration-700"
                 style={{
@@ -1031,15 +1155,15 @@ function ConversationView({
                   <div
                     key={e}
                     className={`absolute ${x} ${y} flex flex-col ${align} px-1 leading-tight transition-opacity`}
-                    style={{ opacity: isDom ? 1 : 0.6 }}
+                    style={{ opacity: isDom ? 1 : 0.65 }}
                   >
                     <span
-                      className="text-[10px] font-extrabold tabular-nums"
+                      className="text-[12px] font-extrabold tabular-nums"
                       style={{ color: emotionUI[ee].color }}
                     >
                       {pct}%
                     </span>
-                    <span className="text-[9px] font-bold text-[#8a8178]">
+                    <span className="text-[11px] font-bold text-[#6c665f]">
                       {EMOTION_LABEL[ee]}
                     </span>
                   </div>
@@ -1048,7 +1172,7 @@ function ConversationView({
             </div>
           </div>
 
-          <div className="max-w-[300px] rounded-[26px] border border-black/5 bg-white/85 px-5 py-4 text-center text-[17px] font-bold leading-relaxed text-[#49433d] shadow-sm backdrop-blur">
+          <div className="max-w-[320px] rounded-[22px] border border-black/5 bg-white/85 px-4 py-3 text-center text-[16px] font-bold leading-relaxed text-[#49433d] shadow-sm backdrop-blur">
             {loading ? "考え中…" : lastMessage}
           </div>
 
@@ -1059,14 +1183,10 @@ function ConversationView({
               Renders only when present and not in the loading state so
               the bubble area stays clean during inference. */}
           {!loading && lastCharacterMessage?.receptionSummary && (
-            <p className="max-w-[300px] text-center text-[12px] font-bold italic leading-relaxed text-[#7a5e1f]">
+            <p className="max-w-[320px] text-center text-[13px] font-bold italic leading-relaxed text-[#7a5e1f]">
               — {lastCharacterMessage.receptionSummary}
             </p>
           )}
-
-          <p className="max-w-[300px] text-center text-xs font-bold leading-relaxed text-[#8a8178]">
-            {ui.helper}
-          </p>
         </section>
         )}
 
@@ -1076,7 +1196,11 @@ function ConversationView({
                 always visible while the user is typing. The face/motion does
                 the talking — color stays subtle by design. */}
             <div className="flex justify-center pt-1">
-              <CharacterFace emotion={emotion} size={88} />
+              <CharacterFace
+                emotion={emotion}
+                size={88}
+                activity={loading ? "thinking" : "idle"}
+              />
             </div>
           <section className="flex flex-1 flex-col min-h-0 overflow-hidden rounded-[28px] border border-black/5 bg-white/80 backdrop-blur">
             <div className="flex flex-col gap-1.5 border-b border-black/5 px-4 py-2.5">
@@ -1122,24 +1246,6 @@ function ConversationView({
           </>
         )}
 
-        {ioMode === "voice" && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {[
-            "初対面って緊張する",
-            "何話せばいいかわからない",
-            "返事の仕方を練習したい",
-          ].map((item) => (
-            <button
-              key={item}
-              onClick={() => setHint(item)}
-              className="shrink-0 rounded-full border border-black/5 bg-white/80 px-3.5 py-2.5 text-[13px] font-bold text-[#6f675e] shadow-sm"
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-        )}
-
         {/* "完了" gate. Each episode declares a minTurns target so users
             can't tap-and-exit on the first hello — the practice has to
             actually happen. Until they hit the target we show a soft
@@ -1152,32 +1258,58 @@ function ConversationView({
           if (userTurns === 0) return null;
           if (!ready) {
             return (
-              <p className="self-center rounded-full border border-black/5 bg-white/80 px-4 py-2 text-[12px] font-bold text-[#8a8178] shadow-sm">
+              <p className="self-center rounded-full border border-black/5 bg-white/80 px-4 py-2 text-[13px] font-bold text-[#8a8178] shadow-sm">
                 {userTurns} / {target} 往復・もう少し話せたら完了できます
               </p>
             );
           }
           return (
             <button
-              onClick={() => onComplete(messages, Array.from(llmHitGoals))}
+              onClick={() =>
+                onComplete(
+                  messages,
+                  Array.from(llmHitGoals),
+                  // Pass the session id only if saving is on; otherwise
+                  // there's no row to attach the review to. EpisodeReview
+                  // will skip persistence in that case.
+                  getSettings().saveSessions ? sessionId : null
+                )
+              }
               type="button"
-              className="self-center rounded-full border border-[#f4be42] bg-[#fff5d8] px-5 py-2.5 text-[13px] font-extrabold text-[#7a5e1f] shadow-sm transition active:scale-[0.99]"
+              className="self-center rounded-full border border-[#f4be42] bg-[#fff5d8] px-5 py-2.5 text-[14px] font-extrabold text-[#7a5e1f] shadow-sm transition active:scale-[0.99]"
             >
               ✓ この練習を完了する
             </button>
           );
         })()}
 
-        <div className="sticky bottom-3 z-10 flex items-center gap-3 rounded-[28px] border border-black/5 bg-white/90 px-3.5 py-3 shadow-sm backdrop-blur">
+        <div
+          className="sticky z-10 flex items-center gap-3 rounded-[28px] border border-black/5 bg-white/95 px-3.5 py-3 shadow-sm backdrop-blur"
+          style={{
+            // Stick the bar above the iOS home indicator. `dvh`-aware parent
+            // means this stays on-screen even when the address bar collapses.
+            bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+          }}
+        >
           {ioMode === "voice" && (
             <button
               onClick={handleMic}
               type="button"
               aria-label={recognition.running ? "マイクを止める" : "マイクを開始"}
-              className={`grid h-[52px] w-[52px] shrink-0 place-items-center rounded-full text-2xl shadow-sm transition-colors ${
-                recognition.running
-                  ? "bg-[#f4be42] animate-pulse"
-                  : "bg-[#fff3d2]"
+              style={{
+                touchAction: "manipulation",
+                WebkitTapHighlightColor: "transparent",
+                // Live audio-level feedback. The outer ring grows with the
+                // smoothed mic level (capped at ~30px expansion at 0.5 RMS
+                // → typical speaking voice). Replaces the constant
+                // animate-pulse so users can SEE that their voice is
+                // actually being captured.
+                boxShadow: recognition.running
+                  ? `0 0 0 ${Math.round(micLevel * 60)}px rgba(244,190,66,0.28), 0 4px 12px rgba(0,0,0,0.12)`
+                  : "0 4px 12px rgba(0,0,0,0.12)",
+              }}
+              className={`grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full text-2xl transition-[box-shadow,background-color] duration-100 active:scale-90 ${
+                recognition.running ? "bg-[#f4be42]" : "bg-[#fff3d2]"
               }`}
             >
               🎤
@@ -1231,9 +1363,11 @@ function ConversationView({
           )}
         </div>
 
-        {error && <p className="text-center text-xs text-red-500">{error}</p>}
-
-        <BottomNav />
+        {error && (
+          <p className="text-center text-[12px] font-bold text-red-500">
+            {error}
+          </p>
+        )}
       </div>
 
       <style jsx global>{`

@@ -14,6 +14,18 @@ export interface SavedSession {
   messages: Message[];
   redoCount: number;
   feedback?: SessionFeedback;
+  // LLM-generated end-of-episode review (or grounded mock fallback). Saved
+  // when the user completes an episode so the history detail page can
+  // surface "what worked / next step / verdict" alongside the transcript,
+  // not just a raw replay.
+  review?: SavedReview;
+}
+
+export interface SavedReview {
+  goodPoint: { quote: string; reason: string };
+  nextStep: string;
+  verdict: string;
+  mode: "gemini" | "groq" | "mock";
 }
 
 export interface PerTurnFeedback {
@@ -87,6 +99,21 @@ export function saveSession(s: SavedSession) {
     else all.unshift(s);
     const trimmed = all.slice(0, MAX_SAVED);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+  } catch {}
+}
+
+// Attach a review to an already-saved session, leaving everything else
+// in place. No-op if the session id can't be found — happens when the
+// user has localStorage saving turned off, in which case the review is
+// shown live on the EpisodeReview screen but isn't persisted.
+export function attachReviewToSession(sessionId: string, review: SavedReview) {
+  if (typeof window === "undefined") return;
+  try {
+    const all = loadSessions();
+    const idx = all.findIndex((s) => s.id === sessionId);
+    if (idx < 0) return;
+    all[idx] = { ...all[idx], review };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
   } catch {}
 }
 

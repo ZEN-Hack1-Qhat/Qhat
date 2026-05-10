@@ -97,8 +97,8 @@ const RESPONSE_SCHEMA = {
   required: ["goodPoint", "nextStep", "verdict"],
 };
 
-const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 export async function reviewWithGemini(
   input: ReviewInput
